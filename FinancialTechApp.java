@@ -1,78 +1,121 @@
+package financial;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
-public class FinancialTechApp {
+public class FinancialTechApp extends JFrame {
 
-    // JDBC URL, username, and password of MySQL server
-    private static final String JDBC_URL = "jdbc:mysql://localhost:3306/financial_db";
-    private static final String USERNAME = "sagar1024";
-    private static final String PASSWORD = "sagar1024";
+    private JTextField principalField, interestRateField, yearsField, resultField;
 
-    // JDBC variables for opening, closing, and managing the database connection
-    private static Connection connection;
-    private static Statement statement;
+    public FinancialTechApp() {
+        super("Financial Tech Calculator");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(400, 200);
+
+        initComponents();
+        layoutComponents();
+        addListeners();
+    }
+
+    private void initComponents() {
+        principalField = new JTextField(10);
+        interestRateField = new JTextField(10);
+        yearsField = new JTextField(10);
+        resultField = new JTextField(10);
+        resultField.setEditable(false);
+
+        JButton calculateButton = new JButton("Calculate");
+        JButton clearButton = new JButton("Clear");
+    }
+
+    private void layoutComponents() {
+        setLayout(new GridLayout(5, 2, 10, 10));
+
+        add(new JLabel("Principal:"));
+        add(principalField);
+        add(new JLabel("Interest Rate (%):"));
+        add(interestRateField);
+        add(new JLabel("Number of Years:"));
+        add(yearsField);
+        add(new JLabel("Result:"));
+        add(resultField);
+
+        JButton calculateButton = new JButton("Calculate");
+        JButton clearButton = new JButton("Clear");
+
+        add(calculateButton);
+        add(clearButton);
+    }
+
+    private void addListeners() {
+        JButton calculateButton = (JButton) getContentPane().getComponent(8);
+        calculateButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                calculateResult();
+            }
+        });
+
+        JButton clearButton = (JButton) getContentPane().getComponent(9);
+        clearButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                clearFields();
+            }
+        });
+    }
+
+    private void calculateResult() {
+        try {
+            double principal = Double.parseDouble(principalField.getText());
+            double interestRate = Double.parseDouble(interestRateField.getText());
+            double years = Double.parseDouble(yearsField.getText());
+
+            // Performing financial calculations
+            double result = principal * Math.pow(1 + (interestRate / 100), years);
+
+            resultField.setText(String.format("%.2f", result));
+
+            // Connecting to the MySQL database and inserting data
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            try (Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/financial_data", "root", "sagarshanks2001")) {
+                String insertQuery = "INSERT INTO financial_data (principal, interest_rate, years, result) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement preparedStatement = connection.prepareStatement(insertQuery)) {
+                    preparedStatement.setDouble(1, principal);
+                    preparedStatement.setDouble(2, interestRate);
+                    preparedStatement.setDouble(3, years);
+                    preparedStatement.setDouble(4, result);
+                    preparedStatement.executeUpdate();
+                }
+            }
+
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(this, "Invalid input. Please enter numeric values.", "Error", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error saving data to the database.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void clearFields() {
+        principalField.setText("");
+        interestRateField.setText("");
+        yearsField.setText("");
+        resultField.setText("");
+    }
 
     public static void main(String[] args) {
-        try {
-            // Opening a connection
-            connection = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD);
-            statement = connection.createStatement();
-
-            // Creating a financial transaction
-            createFinancialTransaction(1234567890, "Deposit", 1000.0);
-
-            // Retrieving and displaying account balance
-            double accountBalance = getAccountBalance(1234567890);
-            System.out.println("Account Balance: $" + accountBalance);
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            // Closing the connection
-            try {
-                if (statement != null)
-                    statement.close();
-                if (connection != null)
-                    connection.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                new FinancialTechApp().setVisible(true);
             }
-        }
-    }
-
-    private static void createFinancialTransaction(long accountNumber, String transactionType, double amount)
-            throws SQLException {
-        // Getting the current date and time
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        String transactionDate = dateFormat.format(new Date());
-
-        // Inserting the financial transaction into the database
-        String insertQuery = "INSERT INTO transactions (account_number, transaction_type, amount, transaction_date) VALUES (?, ?, ?, ?)";
-        try (PreparedStatement preparedStatement = connection.prepareStatement(insertQuery)) {
-            preparedStatement.setLong(1, accountNumber);
-            preparedStatement.setString(2, transactionType);
-            preparedStatement.setDouble(3, amount);
-            preparedStatement.setString(4, transactionDate);
-            preparedStatement.executeUpdate();
-        }
-    }
-
-    private static double getAccountBalance(long accountNumber) throws SQLException {
-        // Retrievign the total balance for the specified account
-        String selectQuery = "SELECT SUM(amount) AS total_balance FROM transactions WHERE account_number = ?";
-        try (PreparedStatement preparedStatement = connection.prepareStatement(selectQuery)) {
-            preparedStatement.setLong(1, accountNumber);
-            ResultSet resultSet = preparedStatement.executeQuery();
-            if (resultSet.next()) {
-                return resultSet.getDouble("total_balance");
-            }
-        }
-        return 0.0;
+        });
     }
 }
+
